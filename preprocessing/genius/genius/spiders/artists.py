@@ -1,4 +1,5 @@
 from csv import writer
+from json import loads
 import scrapy
 from string import ascii_lowercase
 
@@ -23,30 +24,41 @@ class ArtistsDirectorySpider(scrapy.Spider):
         artist_links = artists.xpath("./@href").getall()
         artist_info = zip(artist_names, artist_links)
         
-        # Save progress to CSV file
-        if WRITE_TEMP_PROGRESS:
-            with open(DATA_DIR / f'artists_all_{letter}.csv', "w") as f:
-                csv_writer = writer(f)
-                for artist_tuple in artist_info:
-                    csv_writer.writerow(artist_tuple)
-        
         for artist_name, artist_link in artist_info:
-            yield scrapy.Request(url=artist_link, callback=ArtistPageSpider.parse,
+            yield scrapy.Request(url=artist_link, callback=self.parse_artist_id,
                                  cb_kwargs={"artist_name": artist_name})
 
-
-class AritstPageSpider(scrapy.Spider):
-    name = "artist"
-    
-    def parse(self, response, artist_name=None):
+    def parse_artist_id(self, response, artist_name):
         # Pull artist ID from meta tag in artist page
-        artist_id = response.xpath('//head/meta[@name="newrelic-resource-path"]/@content')
+        artist_id = response.xpath('//head/meta[@name="newrelic-resource-path"]/@content').get()
         artist_id = artist_id.lstrip("/artists/")
+        page = 1
+    
+        yield scrapy.Request(url=f'https://genius.com/api/artists/{artist_id}/songs?page={page}',
+                             callback=self.pull_songs_by_artist_ids, cb_kwargs={"artist_name": artist_name,
+                                                                                "artist_id": artist_id,
+                                                                                "page": page})
         
-        # Save progress to text file
-        if WRITE_TEMP_PROGRESS:
-            with open(DATA_DIR / f'id_{artist_name}.data',  "w") as f:
-                f.write(f'{artist_name}, {artist_id}')
+    def pull_songs_by_artist_ids(self, response, artist_name, artist_id, page):
+        songs_by_artist_resp = loads(response.body)["response"]
+        artist_songs = songs_by_artist_resp["songs"]
         
-        # TODO -- hit https://genius.com/api/artists/**/songs?page=1, then paginate
-        # TODO -- follow those links via a SongLyric Scraper
+        artist_song_urls = [(song.get("id"), song.get("title"), song.get("url")) for song in artist_songs]
+        
+        for id, title, url in artist_song_urls:
+            yield scrapy.Request(url=url, callback=self.pull_song_lyrics,
+                                 cb_kwargs={"artist_name": artist_name,
+                                            "artist_id": artist_id,
+                                            "song_name": title,
+                                            "song_id": id})
+        
+        next_page = songs_by_artist_resp["next_page"]
+        if next_page is not None:
+            yield scrapy.Request(url=f'https://genius.com/api/artists/{artist_id}/songs?page={next_page}',
+                                 callback=self.pull_songs_by_artist_ids, cb_kwargs={"artist_id": artist_id,
+                                                                                    "page": next_page})
+            
+    def pull_song_lyrics(self, response, song_name, song_id, artist_name, artist_id):
+        lyrics_paragraphs = response.xpath("//div[@class='lyrics']/p//text()").getall()
+        #TODO -- actually pull coherent text from the elements in this paragraph tag
+        print("Whoops all done")
