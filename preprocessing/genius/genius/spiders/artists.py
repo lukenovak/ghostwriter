@@ -1,9 +1,9 @@
-from csv import writer
+
 from json import loads
 import scrapy
 from string import ascii_lowercase
 
-from config import DATA_DIR, WRITE_TEMP_PROGRESS
+from config import DATA_DIR
 
 
 class ArtistsDirectorySpider(scrapy.Spider):
@@ -55,7 +55,8 @@ class ArtistsDirectorySpider(scrapy.Spider):
         next_page = songs_by_artist_resp["next_page"]
         if next_page is not None:
             yield scrapy.Request(url=f'https://genius.com/api/artists/{artist_id}/songs?page={next_page}',
-                                 callback=self.pull_songs_by_artist_ids, cb_kwargs={"artist_id": artist_id,
+                                 callback=self.pull_songs_by_artist_ids, cb_kwargs={"artist_name": artist_name,
+                                                                                    "artist_id": artist_id,
                                                                                     "page": next_page})
             
     def pull_song_lyrics(self, response, song_name, song_id, artist_name, artist_id):
