@@ -59,7 +59,11 @@ class ArtistsDirectorySpider(scrapy.Spider):
                                                                                     "page": next_page})
             
     def pull_song_lyrics(self, response, song_name, song_id, artist_name, artist_id):
-        lyrics_div= response.xpath("//div[@class='lyrics']")
-        lyrics_paragraph = lyrics_div.xpath("./p/text() | ./a/text()").getall()
-        # TODO -- actually pull coherent text from the elements in this paragraph tag
-        print("Whoops all done")
+        lyrics_par = response.xpath("//div[@class='lyrics']/p")
+        lyrics_el_text = lyrics_par.xpath("./text() | ./*/text()").getall()
+        lyrics = [s.strip("\n") for s in lyrics_el_text]
+        with open(DATA_DIR / f'{artist_id}_{song_id}.txt', "w") as f:
+            f.write(f'Artist: {artist_name} ({artist_id})\n')
+            f.write(f'Song: {song_name} ({song_id})\n')
+            for lyric in lyrics:
+                f.write(lyric + " ")
