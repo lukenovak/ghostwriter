@@ -1,3 +1,4 @@
 scrapy
 numpy
-tswift
+lyricsgenius
+spotipy
