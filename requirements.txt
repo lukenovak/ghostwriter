@@ -2,3 +2,4 @@ scrapy
 numpy
 lyricsgenius
 spotipy
+tswift
