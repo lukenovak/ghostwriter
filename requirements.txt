@@ -3,3 +3,5 @@ pandas
 lyricsgenius
 spotipy
 tswift
+boto3
+botocore
