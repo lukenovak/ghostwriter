@@ -1,5 +1,5 @@
 scrapy
-numpy
+pandas
 lyricsgenius
 spotipy
 tswift
