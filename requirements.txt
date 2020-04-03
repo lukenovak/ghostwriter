@@ -5,3 +5,4 @@ spotipy
 tswift
 boto3
 botocore
+tensorflow
