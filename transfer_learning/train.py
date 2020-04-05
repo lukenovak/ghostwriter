@@ -1,30 +1,27 @@
-# Copyright (c) 2019-present, HuggingFace Inc.
-# All rights reserved. This source code is licensed under the BSD-style license found in the LICENSE file in the root directory of this source tree.
-
 """
-From https://github.com/huggingface/transfer-learning-conv-ai/blob/master/train.py
-"""
+Trains generative models based on our lyrics and artist data.
 
-import os
-import math
-import logging
-from pprint import pformat
+Extended from original code here: https://github.com/huggingface/transfer-learning-conv-ai/blob/master/train.py
+"""
 from argparse import ArgumentParser
 from collections import defaultdict
-from itertools import chain
-
-import torch
-from torch.nn.parallel import DistributedDataParallel
-from torch.utils.data import DataLoader, TensorDataset
 from ignite.engine import Engine, Events
 from ignite.handlers import ModelCheckpoint
 from ignite.metrics import Accuracy, Loss, MetricsLambda, RunningAverage
 from ignite.contrib.handlers import ProgressBar, PiecewiseLinear
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, OutputHandler, OptimizerParamsHandler
+from itertools import chain
+import logging
+import os
+import math
+from pprint import pformat
+import torch
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data import DataLoader, TensorDataset
 from transformers import (AdamW, OpenAIGPTDoubleHeadsModel, OpenAIGPTTokenizer,
-                                  GPT2DoubleHeadsModel, GPT2Tokenizer, WEIGHTS_NAME, CONFIG_NAME)
+                          GPT2DoubleHeadsModel, GPT2Tokenizer, WEIGHTS_NAME, CONFIG_NAME)
 
-from utils import get_dataset
+from transfer_learning.utils import get_dataset
 
 SPECIAL_TOKENS = ["<bos>", "<eos>", "<speaker1>", "<speaker2>", "<pad>"]
 ATTR_TO_SPECIAL_TOKEN = {'bos_token': '<bos>', 'eos_token': '<eos>', 'pad_token': '<pad>',
@@ -34,8 +31,11 @@ PADDED_INPUTS = ["input_ids", "lm_labels", "token_type_ids"]
 
 logger = logging.getLogger(__file__)
 
+
 def average_distributed_scalar(scalar, args):
-    """ Average a scalar over the nodes if we are in distributed training. We use this for distributed evaluation. """
+    """
+    Average a scalar over the nodes if we are in distributed training. We use this for distributed evaluation.
+    """
     if args.local_rank == -1:
         return scalar
     scalar_t = torch.tensor(scalar, dtype=torch.float, device=args.device) / torch.distributed.get_world_size()
@@ -44,7 +44,10 @@ def average_distributed_scalar(scalar, args):
 
 
 def pad_dataset(dataset, padding=0):
-    """ Pad the dataset. This could be optimized by defining a Dataset class and padding at the batch level, but this is simpler. """
+    """
+    Pad the dataset. This could be optimized by defining a Dataset class and padding at the batch level,
+    but this is simpler.
+    """
     max_l = max(len(x) for x in dataset["input_ids"])
     for name in PADDED_INPUTS:
         dataset[name] = [x + [padding if name != "lm_labels" else -100] * (max_l - len(x)) for x in dataset[name]]
@@ -52,14 +55,19 @@ def pad_dataset(dataset, padding=0):
 
 
 def add_special_tokens_(model, tokenizer):
-    """ Add special tokens to the tokenizer and the model if they have not already been added. """
+    """
+    Add special tokens to the tokenizer and the model if they have not already been added.
+    """
     orig_num_tokens = len(tokenizer.encoder)
     num_added_tokens = tokenizer.add_special_tokens(ATTR_TO_SPECIAL_TOKEN) # doesn't add if they are already there
     if num_added_tokens > 0:
         model.resize_token_embeddings(new_num_tokens=orig_num_tokens + num_added_tokens)
 
+
 def build_input_from_segments(persona, history, reply, tokenizer, lm_labels=False, with_eos=True):
-    """ Build a sequence of input from 3 segments: persona, history and last reply. """
+    """
+    Build a sequence of input from 3 segments: persona, history and last reply.
+    """
     bos, eos, speaker1, speaker2 = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
     sequence = [[bos] + list(chain(*persona))] + history + [reply + ([eos] if with_eos else [])]
     sequence = [sequence[0]] + [[speaker2 if (len(sequence)-i) % 2 else speaker1] + s for i, s in enumerate(sequence[1:])]
@@ -74,7 +82,10 @@ def build_input_from_segments(persona, history, reply, tokenizer, lm_labels=Fals
 
 
 def get_data_loaders(args, tokenizer):
-    """ Prepare the dataset for training and evaluation """
+    """
+    Prepare the dataset for training and evaluation
+    """
+    
     personachat = get_dataset(tokenizer, args.dataset_path, args.dataset_cache)
 
     logger.info("Build inputs and labels")
@@ -247,7 +258,8 @@ def train():
     for name, metric in metrics.items():
         metric.attach(evaluator, name)
 
-    # On the main process: add progress bar, tensorboard, checkpoints and save model, configuration and tokenizer before we start to train
+    # On the main process: add progress bar, tensorboard, checkpoints and save model, configuration and tokenizer
+    # before we start to train
     if args.local_rank in [-1, 0]:
         pbar = ProgressBar(persist=True)
         pbar.attach(trainer, metric_names=["loss"])
@@ -270,10 +282,12 @@ def train():
     # Run the training
     trainer.run(train_loader, max_epochs=args.n_epochs)
 
-    # On the main process: close tensorboard logger and rename the last checkpoint (for easy re-loading with OpenAIGPTModel.from_pretrained method)
+    # On the main process: close tensorboard logger and rename the last checkpoint
+    # (for easy re-loading with OpenAIGPTModel.from_pretrained method)
     if args.local_rank in [-1, 0] and args.n_epochs > 0:
         os.rename(os.path.join(log_dir, checkpoint_handler._saved[-1][1]), os.path.join(log_dir, WEIGHTS_NAME))  # TODO: PR in ignite to have better access to saved file paths (cleaner)
         tb_logger.close()
+
 
 if __name__ == "__main__":
     train()

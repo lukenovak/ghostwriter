@@ -1,15 +1,22 @@
 import random
-from argparse import ArgumentParser
 import itertools
-import warnings
-import pdb
 import torch
 
 from transformers import OpenAIGPTLMHeadModel, OpenAIGPTTokenizer, GPT2LMHeadModel, GPT2Tokenizer
-from train import SPECIAL_TOKENS, build_input_from_segments, add_special_tokens_
-import utils
+from transfer_learning.train import SPECIAL_TOKENS, build_input_from_segments, add_special_tokens_
+from transfer_learning import utils
+
 
 def filter_tokens(filter_data, filter1=0., filter2=0.9, t=-float('Inf'), f=-float('Inf')):
+    """
+    # TODO -- what does this do?
+    :param filter_data:
+    :param filter1:
+    :param filter2:
+    :param t:
+    :param f:
+    :return:
+    """
     filter1 = min(filter1, filter_data.size(-1))
     if filter1 > 0:
         bad_idx = filter_data < torch.topk(filter_data, filter1)[0][..., -1, None]
@@ -29,6 +36,15 @@ def filter_tokens(filter_data, filter1=0., filter2=0.9, t=-float('Inf'), f=-floa
 
 
 def sample_sequence(feature, background, tokenizer, model, current_output=None):
+    """
+    TODO -- what does this do?
+    :param feature:
+    :param background:
+    :param tokenizer:
+    :param model:
+    :param current_output:
+    :return:
+    """
     special_tokens_ids = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
     if current_output is None:
         current_output = []
@@ -39,7 +55,7 @@ def sample_sequence(feature, background, tokenizer, model, current_output=None):
         m = model(inlab, token_type_ids=toklab)
         if isinstance(m, tuple):
             m = m[0]
-        m = m[0, -1, :] / 0.7 # temperature value
+        m = m[0, -1, :] / 0.7  # temperature value
         m = filter_tokens(m, filter1=0, filter2=0.9) # 0 means no filtering 
         probs = torch.nn.functional.softmax(m, dim=-1)
         back = torch.multinomial(probs, 1)
@@ -53,31 +69,32 @@ def sample_sequence(feature, background, tokenizer, model, current_output=None):
         current_output.append(back.item())
     return current_output
 
-def run():
+
+if __name__ == "__main__":
+    # Fetch pretrained model and tokenizer
     pretrained_model = utils.download_pretrained_model()
     tokenizer_class, model_class = (OpenAIGPTTokenizer, OpenAIGPTLMHeadModel)
     tokenizer = tokenizer_class.from_pretrained(pretrained_model)
     model = model_class.from_pretrained(pretrained_model)
     model.to("cpu")
     add_special_tokens_(model, tokenizer)
+    
+    # Fetch our dataset
     dataset = utils.get_dataset(tokenizer, "./dataset_cache")
     features = [dialog["feature"] for dataset in dataset.values() for dialog in dataset]
     feature = random.choice(features)
     print("Examples of selected feature:\n", tokenizer.decode(itertools.chain(*feature)))
     background = [tokenizer.encode("tell me about yourself")]
+    
     generated_lyrics = []
     hist_size = 2
-    for _ in range(5): # how many lines of lyrics to generate - time grows exponentially with this value
+    for _ in range(5):  # how many lines of lyrics to generate - time grows exponentially with this value
         with torch.no_grad():
             out_ids = sample_sequence(feature, background, tokenizer, model)
         background.append(out_ids)
         background.append(random.choice(background))
-        background = background[-5:] # size of history to retain (needs to be odd number since we're using two headed model)
+        background = background[-5:]  # size of history to retain (needs to be odd # since we're using two headed model)
         this_line = tokenizer.decode(out_ids, skip_special_tokens=True)
         generated_lyrics.append(this_line)
     print("\nGenerated lyrics:")
     print("\n".join(generated_lyrics))
-
-
-if __name__ == "__main__":
-    run()

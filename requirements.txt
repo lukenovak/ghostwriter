@@ -6,3 +6,6 @@ tswift
 boto3
 botocore
 tensorflow
+torch
+pytorch-ignite
+transformers
