@@ -66,7 +66,7 @@ def run():
     print("Examples of selected feature:\n", tokenizer.decode(itertools.chain(*feature)))
     background = [tokenizer.encode("tell me about yourself")]
     generated_lyrics = []
-    hist_size = 2
+    #hist_size = 2
     for _ in range(5): # how many lines of lyrics to generate - time grows exponentially with this value
         with torch.no_grad():
             out_ids = sample_sequence(feature, background, tokenizer, model)
