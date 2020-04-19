@@ -6,3 +6,4 @@ tswift
 boto3
 botocore
 tensorflow
+matplotlib

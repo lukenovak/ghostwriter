@@ -34,6 +34,8 @@ songs_loaded = 0
 start = time()
 # now, use tswift to search for all of these artists
 for artist in artist_ids:
+    if len(artist_to_tswift) > 1:
+        break
     if i % 10 == 0:
         print(f"searched {i} of {len(artist_ids)}, loading {songs_loaded} songs in {time() - start} seconds")
 
@@ -63,6 +65,17 @@ for artist in artist_ids:
         print(f"unable to load artist {artist}")
         i +=1
 
+# remove duplicate songs
+def remove_dups(songs):
+    nondups = set()
+    for song in songs:
+        if not song.title in nondups:
+            nondups.add(song.title)
+            yield song
+        else:
+            print("removed dup")
+
+
 successes = 0
 i = 0
 start = time()
@@ -74,7 +87,8 @@ for artist in artist_to_tswift:
         print(f"indexed {i} of {songs_loaded} songs in {time() - start} seconds")
     lyrics = None
 
-    for song in tswift_artist.songs:
+    for song in remove_dups(tswift_artist.songs):
+
         if i % 100 == 0:
             print(f"successfully indexed {successes} of {i} out of a "
                   f"total of {songs_loaded} songs in {time() - start} seconds")
