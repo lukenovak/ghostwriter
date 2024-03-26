@@ -59,7 +59,7 @@ tokenizers==0.5.2
 torch==1.4.0
 tqdm==4.43.0
 transformers==2.5.1
-urllib3==1.26.5
+urllib3==1.26.18
 wasabi==0.6.0
 Werkzeug==2.2.3
 wrapt==1.12.1
